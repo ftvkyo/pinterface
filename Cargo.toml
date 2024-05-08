@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+rppal = "0.17.1"
+
+[dependencies.image]
+version = "0.25"
+default-features = false
+
+[dependencies.imageproc]
+version = "0.24.0"
+default-features = false
+features = ["rayon"]
