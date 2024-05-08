@@ -35,6 +35,9 @@ impl From<rppal::spi::Error> for DriverError {
 pub type DisplayImagePixel = Luma<u8>;
 pub type DisplayImage = ImageBuffer<DisplayImagePixel, Vec<u8>>;
 
+pub const BLACK: DisplayImagePixel = Luma([u8::MIN]);
+pub const WHITE: DisplayImagePixel = Luma([u8::MAX]);
+
 pub struct Display {
     // Output: reset the display
     rst: OutputPin,
@@ -96,16 +99,22 @@ impl Display {
         })
     }
 
-    pub fn image_white() -> DisplayImage {
-        let mut image = DisplayImage::new(Self::WIDTH, Self::HEIGHT);
+    pub fn image_white_v() -> DisplayImage {
+        let mut img = DisplayImage::new(Self::WIDTH, Self::HEIGHT);
 
-        for x in 0..Self::WIDTH {
-            for y in 0..Self::HEIGHT {
-                image.put_pixel(x, y, Luma([u8::MAX]));
-            }
+        for (_x, _y, pixel) in img.enumerate_pixels_mut() {
+            *pixel = WHITE;
         }
 
-        return image;
+        return img;
+    }
+
+    pub fn image_white_h() -> DisplayImage {
+        let img = Self::image_white_v();
+        let img_rot = image::imageops::rotate90(&img);
+        let img_flip = image::imageops::flip_horizontal(&img_rot);
+
+        return img_flip;
     }
 
     fn image_size_bytes() -> (usize, usize) {
@@ -197,16 +206,16 @@ impl Display {
     }
 
     pub fn clear(&mut self) -> Result<(), DriverError> {
-        self.display(Self::image_white())?;
+        self.display_h(Self::image_white_h())?;
         Ok(())
     }
 
-    pub fn display(&mut self, image: DisplayImage) -> Result<(), DriverError> {
+    pub fn display_v(&mut self, img: DisplayImage) -> Result<(), DriverError> {
         let (width, ..) = Self::image_size_bytes();
         let mut buffer = Self::buffer_white();
 
         // Convert the image data to be used in the buffer
-        for (x, y, pixel) in image.enumerate_pixels() {
+        for (x, y, pixel) in img.enumerate_pixels() {
             let black = pixel.0[0] <= u8::MAX / 2;
 
             // Need to make the bit black?
@@ -224,6 +233,12 @@ impl Display {
         self.display_on()?;
 
         Ok(())
+    }
+
+    pub fn display_h(&mut self, img: DisplayImage) -> Result<(), DriverError> {
+        let img_flip = image::imageops::flip_horizontal(&img);
+        let img_rot = image::imageops::rotate270(&img_flip);
+        self.display_v(img_rot)
     }
 
     pub fn sleep(&mut self) -> Result<(), DriverError> {
