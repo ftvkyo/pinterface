@@ -5,10 +5,11 @@ use imageproc::drawing;
 
 mod args;
 mod driver;
-mod error;
+mod app_error;
 mod util;
 
 use driver::{Display as Dev, BLACK};
+use log::{debug, error, info};
 use util::*;
 
 
@@ -24,12 +25,12 @@ const FONT_SCALE: f32 = 16.0;
 // | 16.0       | 36            |
 
 fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
+
     let font = FontRef::try_from_slice(FONT)?;
 
     let mut dev = Dev::new()?;
 
     loop {
-        println!("Initializing!");
 
         // Initialize
 
@@ -61,7 +62,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
                 for (line, text) in output.trim().split("\n").enumerate() {
                     let x = 0;
                     let y = (line as f32 * FONT_SCALE) as i32;
-                    println!("Drawing text '{}' at ({}, {})", text, x, y);
+                    debug!("Drawing text '{}' at ({}, {})", text, x, y);
                     drawing::draw_text_mut(&mut image, BLACK, x, y, FONT_SCALE, &font, text);
                 }
             },
@@ -76,7 +77,6 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Deinitialize
 
-        println!("Deinitializing!");
         dev.init()?;
         dev.clear()?;
         dev.sleep()?;
@@ -96,11 +96,14 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
+    dotenv::dotenv().ok(); // Don't fail when `.env` is not present
+    pretty_env_logger::init();
+
     let args = args::Args::parse();
-    println!("Received {:#?}", args);
+    info!("Received\n{:#?}", args);
 
     match try_main(&args) {
-        Ok(_) => println!("Done!"),
-        Err(e) => println!("Error: {}", e),
+        Ok(_) => info!("Done!"),
+        Err(e) => error!("Error: {}", e),
     };
 }

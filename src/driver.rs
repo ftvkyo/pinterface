@@ -1,4 +1,5 @@
 use image::{ImageBuffer, Luma};
+use log::info;
 use rppal::gpio::{Gpio, InputPin, OutputPin, Level::*};
 use rppal::spi::{self, Spi, Bus, SlaveSelect};
 
@@ -137,6 +138,8 @@ impl Display {
 
 
     fn reset(&mut self) {
+        info!("reset");
+
         self.rst.write(High);
         sleep_ms(200);
         self.rst.write(Low);
@@ -163,7 +166,9 @@ impl Display {
         }
     }
 
-    fn display_on(&mut self) -> Result<(), DriverError>  {
+    fn show(&mut self) -> Result<(), DriverError>  {
+        info!("show");
+
         // Display Update Control
         self.send_command(&[0x22])?;
         self.send_data(&[0xF7])?;
@@ -177,6 +182,8 @@ impl Display {
 
 
     pub fn init(&mut self) -> Result<(), DriverError> {
+        info!("init");
+
         self.pwr.write(High);
 
         self.reset();
@@ -202,11 +209,14 @@ impl Display {
     }
 
     pub fn clear(&mut self) -> Result<(), DriverError> {
+        info!("clear");
         self.display(Self::image_white())?;
         Ok(())
     }
 
     pub fn display(&mut self, img: DisplayImage) -> Result<(), DriverError> {
+        info!("display");
+
         let (width, ..) = Self::image_size_bytes();
         let mut buffer = Self::buffer_white();
 
@@ -229,12 +239,14 @@ impl Display {
         self.send_command(&[0x24])?;
         self.send_data(buffer.as_slice())?;
 
-        self.display_on()?;
+        self.show()?;
 
         Ok(())
     }
 
     pub fn sleep(&mut self) -> Result<(), DriverError> {
+        info!("sleep");
+
         self.send_command(&[0x10])?;
         self.send_data(&[0x01])?;
 
