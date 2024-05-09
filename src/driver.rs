@@ -74,10 +74,10 @@ pub struct Display {
 
 
 /// Waveshare 2.7 inch e-Paper display
-/// 
+///
 /// Documentation: https://www.waveshare.com/wiki/2.7inch_e-Paper_HAT_Manual
 /// Specification: https://files.waveshare.com/upload/b/ba/2.7inch_e-Paper_V2_Specification.pdf
-/// 
+///
 /// LUT stands for look up table.
 /// It stores the Waveform which defines the relation between grayscale, voltage and temperature.
 impl Display {

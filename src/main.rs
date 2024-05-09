@@ -1,15 +1,15 @@
 use ab_glyph::FontRef;
 use args::Command;
 use clap::Parser;
-use imageproc::drawing;
 
 mod args;
+mod command;
 mod driver;
 mod app_error;
 mod util;
 
-use driver::{Display as Dev, DisplayMode, BLACK};
-use log::{debug, error, info};
+use driver::{Display as Dev, DisplayMode};
+use log::{error, info};
 use util::*;
 
 
@@ -23,6 +23,7 @@ const FONT_SCALE: f32 = 16.0;
 // | ---------- | ------------- |
 // | 20.0       | 29            |
 // | 16.0       | 36            |
+
 
 fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -44,41 +45,25 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Display an image
 
-        let mut image = Dev::image_white();
+        let mut img = Dev::image_white();
 
         match args.command {
             Command::Clear => {},
-            Command::Calendar => {
-                // Letter X
-                drawing::draw_line_segment_mut(&mut image, (5.0, 5.0), (15.0, 15.0), BLACK);
-                drawing::draw_line_segment_mut(&mut image, (15.0, 5.0), (5.0, 15.0), BLACK);
-
-                // Arrow to the right
-                drawing::draw_line_segment_mut(&mut image, (15.0, 10.0), (30.0, 10.0), BLACK);
-                drawing::draw_line_segment_mut(&mut image, (25.0, 5.0), (30.0, 10.0), BLACK);
-                drawing::draw_line_segment_mut(&mut image, (25.0, 15.0), (30.0, 10.0), BLACK);
-
-                // Another cross
-                drawing::draw_line_segment_mut(&mut image, (50.0, 50.0), (70.0, 70.0), BLACK);
-                drawing::draw_line_segment_mut(&mut image, (70.0, 50.0), (50.0, 70.0), BLACK);
+            Command::Debug => {
+                command::debug::debug(&mut img, &font, FONT_SCALE)?;
             },
+            Command::Calendar => {},
             Command::Network => {
-                let output = net_info(IFNAME)?;
-                for (line, text) in output.trim().split("\n").enumerate() {
-                    let x = 0;
-                    let y = (line as f32 * FONT_SCALE) as i32;
-                    debug!("Drawing text '{}' at ({}, {})", text, x, y);
-                    drawing::draw_text_mut(&mut image, BLACK, x, y, FONT_SCALE, &font, text);
-                }
+                command::network::network(&mut img, &font, FONT_SCALE, IFNAME)?;
             },
         };
 
-        dev.display(image, mode)?;
+        dev.display(img, mode)?;
         dev.sleep()?;
 
         // Wait
 
-        sleep_ms(10_000);
+        sleep_ms(5_000);
 
         // Deinitialize
 

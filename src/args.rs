@@ -19,6 +19,7 @@ pub struct Args {
 #[derive(ValueEnum, Clone, Debug)]
 pub enum Command {
     Clear,
+    Debug,
     Network,
     Calendar,
 }
