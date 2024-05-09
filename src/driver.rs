@@ -10,6 +10,7 @@ use super::util::*;
 pub enum DriverError {
     Gpio(rppal::gpio::Error),
     Spi(rppal::spi::Error),
+    WrongInput(String),
 }
 
 impl std::fmt::Display for DriverError {
@@ -126,8 +127,20 @@ impl Display {
         })
     }
 
-    pub fn image_white() -> DisplayImage {
+    /// Get vertical image
+    pub fn image_white_v() -> DisplayImage {
         let mut img = DisplayImage::new(Self::WIDTH, Self::HEIGHT);
+
+        for (_x, _y, pixel) in img.enumerate_pixels_mut() {
+            *pixel = WHITE;
+        }
+
+        return img;
+    }
+
+    /// Get horizontal image
+    pub fn image_white_h() -> DisplayImage {
+        let mut img = DisplayImage::new(Self::HEIGHT, Self::WIDTH);
 
         for (_x, _y, pixel) in img.enumerate_pixels_mut() {
             *pixel = WHITE;
@@ -251,7 +264,7 @@ impl Display {
 
     pub fn clear(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
         info!("clear ({})", mode);
-        self.display(Self::image_white(), mode)?;
+        self.display(Self::image_white_v(), mode)?;
         Ok(())
     }
 
@@ -265,13 +278,44 @@ impl Display {
         let (width, ..) = Self::image_size_bytes();
         let mut buffer = Self::buffer_white();
 
+        let horizontal = match (img.width(), img.height()) {
+            (Self::WIDTH, Self::HEIGHT) => false,
+            (Self::HEIGHT, Self::WIDTH) => true,
+            _ => return Err(DriverError::WrongInput(format!(
+                "Image dimensions do not match screen size. Image is {}x{}. Screen is {}, {}",
+                img.width(), img.height(),
+                Self::WIDTH, Self::HEIGHT,
+            ))),
+        };
+
+        // Note: how images are moved into a buffer.
+        //
+        // When the image is vertical, it is transferred byte to bit as is.
+        // The default orientation is such that the flexible connector of the screen is on the bottom.
+        // - (0, 0) of the image corresponds to (0, 0) of the screen
+        //
+        // When the image is horizontal, a transformation is necessary.
+        // The orientation is such that the flexible connector of the screen is on the left.
+        // Therefore:
+        // - (0, 0)           -> (0, ScreenH-1)
+        // - (ImgW-1, 0)      -> (0, 0)
+        // - (0, ImgH-1)      -> (ScreenW-1, ScreenH-1)
+        // - (ImgW-1, ImgH-1) -> (ScreenW-1, 0)
+        //
+        // TODO: figure out how to do this using memory addressing settings
+
         // Convert the image data to be used in the buffer
         for (x, y, pixel) in img.enumerate_pixels() {
             let black = pixel.0[0] <= u8::MAX / 2;
 
             // Need to make the bit black?
             if black {
-                let (x, y) = (x as usize, y as usize);
+                let (x, y) = if horizontal {
+                    (y as usize, (Self::HEIGHT - x - 1) as usize)
+                } else {
+                    (x as usize, y as usize)
+                };
+
                 let mask = 0b10000000 >> (x % 8);
                 // Just flip (xor) it, there should be no duplicates
                 buffer[x / 8 + y * width] ^= mask;

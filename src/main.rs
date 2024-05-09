@@ -45,7 +45,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Display an image
 
-        let mut img = Dev::image_white();
+        let mut img = Dev::image_white_h();
 
         match args.command {
             Command::Clear => {},
