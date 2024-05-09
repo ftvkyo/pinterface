@@ -43,3 +43,22 @@ Then:
 ```sh
 sudo systemctl enable --now obsidian-sync
 ```
+
+
+## SPI setup
+
+### Config
+
+```sh
+sudo raspi-config
+```
+
+Then: enable SPI interface
+
+### `/boot/cmdline.txt`
+
+Add this parameter to allow long messages to be sent at once:
+
+```
+spidev.bufsiz=1024000
+```
