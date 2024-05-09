@@ -38,7 +38,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Display an image
 
-        let mut image = Dev::image_white_h();
+        let mut image = Dev::image_white();
 
         match args.mode {
             Mode::Clear => {},
@@ -67,7 +67,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
             },
         };
 
-        dev.display_h(image)?;
+        dev.display(image)?;
         dev.sleep()?;
 
         // Wait
