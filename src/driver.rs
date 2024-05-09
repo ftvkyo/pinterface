@@ -39,6 +39,24 @@ pub type DisplayImage = ImageBuffer<DisplayImagePixel, Vec<u8>>;
 pub const BLACK: DisplayImagePixel = Luma([u8::MIN]);
 pub const WHITE: DisplayImagePixel = Luma([u8::MAX]);
 
+
+#[derive(Clone, Copy, Debug)]
+pub enum DisplayMode {
+    Full,
+    Fast,
+}
+
+impl std::fmt::Display for DisplayMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Full => "🐢",
+            Self::Fast => "🐇",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+
 pub struct Display {
     // Output: reset the display
     rst: OutputPin,
@@ -54,6 +72,14 @@ pub struct Display {
     spi: Spi,
 }
 
+
+/// Waveshare 2.7 inch e-Paper display
+/// 
+/// Documentation: https://www.waveshare.com/wiki/2.7inch_e-Paper_HAT_Manual
+/// Specification: https://files.waveshare.com/upload/b/ba/2.7inch_e-Paper_V2_Specification.pdf
+/// 
+/// LUT stands for look up table.
+/// It stores the Waveform which defines the relation between grayscale, voltage and temperature.
 impl Display {
 
     const WIDTH: u32 = 176;
@@ -101,11 +127,7 @@ impl Display {
     }
 
     pub fn image_white() -> DisplayImage {
-        // Note: Width and Height are flipped.
-        // The driver sends the image as vertical, but this allows working with it as with a horizontal image.
-        // See also: `display()`
-
-        let mut img = DisplayImage::new(Self::HEIGHT, Self::WIDTH);
+        let mut img = DisplayImage::new(Self::WIDTH, Self::HEIGHT);
 
         for (_x, _y, pixel) in img.enumerate_pixels_mut() {
             *pixel = WHITE;
@@ -166,14 +188,19 @@ impl Display {
         }
     }
 
-    fn show(&mut self) -> Result<(), DriverError>  {
-        info!("show");
+    fn show(&mut self, mode: DisplayMode) -> Result<(), DriverError>  {
+        info!("show ({})", mode);
 
-        // Display Update Control
+        // Display update control
         self.send_command(&[0x22])?;
-        self.send_data(&[0xF7])?;
+        match mode {
+            // Load temperature value, Display with mode 1
+            DisplayMode::Full => self.send_data(&[0xF7])?,
+            // Display with mode 1
+            DisplayMode::Fast => self.send_data(&[0xC7])?,
+        }
 
-        // Activate Display Update Sequence
+        // Execute the selected update sequence
         self.send_command(&[0x20])?;
         self.wait_not_busy();
 
@@ -181,8 +208,8 @@ impl Display {
     }
 
 
-    pub fn init(&mut self) -> Result<(), DriverError> {
-        info!("init");
+    pub fn init(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
+        info!("init ({})", mode);
 
         self.pwr.write(High);
 
@@ -191,40 +218,55 @@ impl Display {
 
         // SWRESET
         self.send_command(&[0x12])?;
+        self.wait_not_busy();
+
+        if let DisplayMode::Fast = mode {
+            // Select temperature sensor
+            self.send_command(&[0x18])?;
+            // Internal sensor
+            self.send_data(&[0x80])?;
+
+            // Display update control
+            self.send_command(&[0x22])?;
+            // Load temperature value, Load LUT (display mode 1)
+            self.send_data(&[0xB1])?;
+
+            // Execute the selected update sequence
+            self.send_command(&[0x20])?;
+            self.wait_not_busy();
+        }
 
         // Set RAM Y address start/end position
-        let [byte1, byte2] = (Self::HEIGHT as u16 - 1).to_le_bytes();
+        let [y_byte_1, y_byte_2] = (Self::HEIGHT as u16 - 1).to_le_bytes();
         self.send_command(&[0x45])?;
-        self.send_data(&[0x00, 0x00, byte1, byte2])?;
+        self.send_data(&[0x00, 0x00, y_byte_1, y_byte_2])?;
+
+        // Data entry mode
+        self.send_command(&[0x11])?;
+        // Y increment, X increment, counter updated in X direction
+        self.send_data(&[0b0000_0011])?;
+
+        Ok(())
+    }
+
+    pub fn clear(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
+        info!("clear ({})", mode);
+        self.display(Self::image_white(), mode)?;
+        Ok(())
+    }
+
+    pub fn display(&mut self, img: DisplayImage, mode: DisplayMode) -> Result<(), DriverError> {
+        info!("display ({})", mode);
 
         // Set RAM Y address count to 0
         self.send_command(&[0x4F])?;
         self.send_data(&[0x00, 0x00])?;
 
-        // Data entry mode
-        self.send_command(&[0x11])?;
-        self.send_data(&[0x03])?;
-
-        Ok(())
-    }
-
-    pub fn clear(&mut self) -> Result<(), DriverError> {
-        info!("clear");
-        self.display(Self::image_white())?;
-        Ok(())
-    }
-
-    pub fn display(&mut self, img: DisplayImage) -> Result<(), DriverError> {
-        info!("display");
-
         let (width, ..) = Self::image_size_bytes();
         let mut buffer = Self::buffer_white();
 
         // Convert the image data to be used in the buffer
-        for (y, x, pixel) in img.enumerate_pixels() {
-            // Note: x and y are flipped.
-            // See also: `image_white()`.
-
+        for (x, y, pixel) in img.enumerate_pixels() {
             let black = pixel.0[0] <= u8::MAX / 2;
 
             // Need to make the bit black?
@@ -239,7 +281,7 @@ impl Display {
         self.send_command(&[0x24])?;
         self.send_data(buffer.as_slice())?;
 
-        self.show()?;
+        self.show(mode)?;
 
         Ok(())
     }

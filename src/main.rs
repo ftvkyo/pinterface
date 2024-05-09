@@ -1,5 +1,5 @@
 use ab_glyph::FontRef;
-use args::Mode;
+use args::Command;
 use clap::Parser;
 use imageproc::drawing;
 
@@ -8,7 +8,7 @@ mod driver;
 mod app_error;
 mod util;
 
-use driver::{Display as Dev, BLACK};
+use driver::{Display as Dev, DisplayMode, BLACK};
 use log::{debug, error, info};
 use util::*;
 
@@ -30,20 +30,25 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut dev = Dev::new()?;
 
+    let mode = match args.fast {
+        false => DisplayMode::Full,
+        true => DisplayMode::Fast,
+    };
+
     loop {
 
         // Initialize
 
-        dev.init()?;
-        dev.clear()?;
+        dev.init(mode)?;
+        dev.clear(mode)?;
 
         // Display an image
 
         let mut image = Dev::image_white();
 
-        match args.mode {
-            Mode::Clear => {},
-            Mode::Calendar => {
+        match args.command {
+            Command::Clear => {},
+            Command::Calendar => {
                 // Letter X
                 drawing::draw_line_segment_mut(&mut image, (5.0, 5.0), (15.0, 15.0), BLACK);
                 drawing::draw_line_segment_mut(&mut image, (15.0, 5.0), (5.0, 15.0), BLACK);
@@ -57,7 +62,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
                 drawing::draw_line_segment_mut(&mut image, (50.0, 50.0), (70.0, 70.0), BLACK);
                 drawing::draw_line_segment_mut(&mut image, (70.0, 50.0), (50.0, 70.0), BLACK);
             },
-            Mode::Network => {
+            Command::Network => {
                 let output = net_info(IFNAME)?;
                 for (line, text) in output.trim().split("\n").enumerate() {
                     let x = 0;
@@ -68,7 +73,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
             },
         };
 
-        dev.display(image)?;
+        dev.display(image, mode)?;
         dev.sleep()?;
 
         // Wait
@@ -77,8 +82,8 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Deinitialize
 
-        dev.init()?;
-        dev.clear()?;
+        dev.init(DisplayMode::Full)?;
+        dev.clear(DisplayMode::Full)?;
         dev.sleep()?;
 
         // Stop if not repeating
