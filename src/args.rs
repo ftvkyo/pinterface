@@ -20,6 +20,7 @@ pub struct Args {
 pub enum Command {
     Clear,
     Debug,
+    Tasks,
     Network,
     Calendar,
 }

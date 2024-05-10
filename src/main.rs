@@ -1,5 +1,4 @@
 use ab_glyph::FontRef;
-use args::Command;
 use clap::Parser;
 
 mod args;
@@ -8,6 +7,7 @@ mod driver;
 mod app_error;
 mod util;
 
+use args::Command;
 use driver::{Display as Dev, DisplayMode};
 use log::{error, info};
 use util::*;
@@ -51,6 +51,9 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
             Command::Clear => {},
             Command::Debug => {
                 command::debug::debug(&mut img, &font, FONT_SCALE)?;
+            },
+            Command::Tasks => {
+                command::tasks::tasks(&mut img, &font, FONT_SCALE)?;
             },
             Command::Calendar => {},
             Command::Network => {
