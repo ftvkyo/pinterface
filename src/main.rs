@@ -7,8 +7,8 @@ mod driver;
 mod app_error;
 mod util;
 
-use args::Command;
-use driver::{Display as Dev, DisplayMode};
+use args::{Command, DisplayMode};
+use driver::Display as Dev;
 use log::{error, info};
 use util::*;
 
@@ -31,12 +31,6 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut dev = Dev::new()?;
 
-    let mode = match (args.fast, args.grayscale) {
-        (false, false) => DisplayMode::Full,
-        (true, false) => DisplayMode::Fast,
-        (_, true) => DisplayMode::Grayscale,
-    };
-
     loop {
 
         // Initialize and clear
@@ -46,7 +40,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
         // Reinitialize and display something
 
-        dev.init(mode)?;
+        dev.init(args.mode)?;
 
         let mut img = Dev::image_white_h();
 
@@ -64,7 +58,7 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
             },
         };
 
-        dev.display(img, mode)?;
+        dev.display(img, args.mode)?;
         dev.sleep()?;
 
         // Wait

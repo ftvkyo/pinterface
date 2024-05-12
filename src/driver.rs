@@ -3,6 +3,8 @@ use log::info;
 use rppal::gpio::{Gpio, InputPin, OutputPin, Level::*};
 use rppal::spi::{self, Spi, Bus, SlaveSelect};
 
+use crate::args::DisplayMode;
+
 use super::util::*;
 
 
@@ -41,35 +43,16 @@ pub const BLACK: DisplayImagePixel = Luma([u8::MIN]);
 pub const WHITE: DisplayImagePixel = Luma([u8::MAX]);
 
 
-#[derive(Clone, Copy, Debug)]
-pub enum DisplayMode {
-    Full,
-    Fast,
-    Grayscale,
-}
-
-impl std::fmt::Display for DisplayMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            Self::Full => "🐢",
-            Self::Fast => "🐇",
-            Self::Grayscale => "🌻",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-
 #[repr(u8)]
 #[derive(Clone, Copy)]
-enum ColorGrayscale {
+enum ColorGreyscale {
     Black = 0b00,
     Dark  = 0b01,
     Light = 0b10,
     White = 0b11,
 }
 
-impl ColorGrayscale {
+impl ColorGreyscale {
     const B_FROM: u8 = 0;
     const B_TO: u8   = Self::B_FROM + u8::MAX / 4;
 
@@ -125,7 +108,7 @@ pub struct Display {
 /// Specification: https://files.waveshare.com/upload/b/ba/2.7inch_e-Paper_V2_Specification.pdf
 ///
 /// LUT stands for look up table.
-/// It stores the Waveform which defines the relation between grayscale, voltage and temperature.
+/// It stores the Waveform which defines the relation between greyscale, voltage and temperature.
 impl Display {
 
     const WIDTH: u32 = 176;
@@ -255,7 +238,7 @@ impl Display {
             // Load temperature value, Display with mode 1
             DisplayMode::Full => self.send_data(&[0xF7])?,
             // Display with mode 1
-            DisplayMode::Fast | DisplayMode::Grayscale => self.send_data(&[0xC7])?,
+            DisplayMode::Fast | DisplayMode::Grey => self.send_data(&[0xC7])?,
         }
 
         // Execute the selected update sequence
@@ -294,7 +277,7 @@ impl Display {
             self.wait_not_busy();
         }
 
-        if let DisplayMode::Grayscale = mode {
+        if let DisplayMode::Grey = mode {
             // Set analog block control
             self.send_command(&[0x74])?;
             self.send_data(&[0x54])?;
@@ -319,7 +302,7 @@ impl Display {
         self.send_command(&[0x45])?;
         self.send_data(&[0x00, 0x00, y_byte_1, y_byte_2])?;
 
-        if let DisplayMode::Grayscale = mode {
+        if let DisplayMode::Grey = mode {
             // Don't draw border
             self.send_command(&[0x3C])?;
             self.send_data(&[0x00])?;
@@ -392,8 +375,8 @@ impl Display {
             ))),
         };
 
-        if let DisplayMode::Grayscale = mode {
-            return self.display_grayscale(img, horizontal);
+        if let DisplayMode::Grey = mode {
+            return self.display_greyscale(img, horizontal);
         }
 
         // Note: how images are moved into a buffer.
@@ -437,7 +420,7 @@ impl Display {
         Ok(())
     }
 
-    pub fn display_grayscale(&mut self, img: DisplayImage, horizontal: bool) -> Result<(), DriverError> {
+    pub fn display_greyscale(&mut self, img: DisplayImage, horizontal: bool) -> Result<(), DriverError> {
         let (width, ..) = Self::image_size_bytes();
 
         let mut buffer_0011 = Self::buffer_white();
@@ -445,7 +428,7 @@ impl Display {
 
         // TODO: this pretty much copies the general `display()` method, would be nice to deduplicate
         for (x, y, pixel) in img.enumerate_pixels() {
-            let color = ColorGrayscale::new(pixel);
+            let color = ColorGreyscale::new(pixel);
             let bit_0011 = color.bit_0011();
             let bit_0101 = color.bit_0101();
 
@@ -467,7 +450,7 @@ impl Display {
         self.send_command(&[0x26])?;
         self.send_data(buffer_0011.as_slice())?;
 
-        self.show(DisplayMode::Grayscale)?;
+        self.show(DisplayMode::Grey)?;
 
         Ok(())
     }
