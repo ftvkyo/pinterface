@@ -1,10 +1,9 @@
-use ab_glyph::FontRef;
-use imageproc::drawing::draw_text_mut;
+use cosmic_text::Color;
 use log::{debug, warn};
 use markdown::{mdast::{ListItem, Node as MdNode, Paragraph}, ParseOptions};
 use serde::Deserialize;
 
-use crate::driver::{DisplayImage, BLACK};
+use crate::{driver::DisplayImage, render};
 
 
 const TIME_PRETTY: &'static str = "<~ UwU ~> %Y-%m-%d %H:%M";
@@ -28,7 +27,7 @@ struct Task {
 }
 
 
-pub fn tasks(img: &mut DisplayImage, font: &FontRef, font_scale: f32) -> Result<(), Box<dyn std::error::Error>> {
+pub fn tasks(img: &mut DisplayImage) -> Result<(), Box<dyn std::error::Error>> {
     let vault = std::path::PathBuf::from(std::env::var("VAULT")?);
     let now = chrono::Local::now();
 
@@ -57,27 +56,9 @@ pub fn tasks(img: &mut DisplayImage, font: &FontRef, font_scale: f32) -> Result<
 
             debug!("Found unchecked tasks:\n{:#?}", tasks);
 
-            draw_text_mut(
-                img,
-                BLACK,
-                0,
-                0,
-                font_scale,
-                font,
-                &now.format(TIME_PRETTY).to_string(),
-            );
+            let text = format!("{}\n{}", now.format(TIME_PRETTY), format_tasks(tasks, 0));
 
-            let mut x = 0;
-            let mut y = font_scale as i32;
-
-            draw_tasks(
-                img,
-                font,
-                font_scale,
-                &mut x,
-                &mut y,
-                tasks,
-            );
+            render::text(img, Color::rgb(0, 0, 0), &text);
         },
     }
 
@@ -145,13 +126,17 @@ fn collect_tasks(node: &MdNode, original: &str, only_unchecked: bool) -> Vec<Tas
 }
 
 
-fn draw_tasks(img: &mut DisplayImage, font: &FontRef, font_scale: f32, x: &mut i32, y: &mut i32, tasks: Vec<Task>) {
+fn format_tasks(tasks: Vec<Task>, depth: u8) -> String {
+    let mut result = String::new();
+
     for task in tasks {
-        let text = format!("- [{}] {}", if task.checked { "x" } else { " " }, task.text);
-        draw_text_mut(img, BLACK, *x, *y, font_scale, font, &text);
-        *y += font_scale as i32;
-        *x += font_scale as i32;
-        draw_tasks(img, font, font_scale, x, y, task.subtasks);
-        *x -= font_scale as i32;
+        for _ in 0..depth {
+            result.push_str(" ");
+        }
+        let text = format!("- {}\n", task.text);
+        result.push_str(&text);
+        result.push_str(&format_tasks(task.subtasks, depth + 2));
     }
+
+    result
 }

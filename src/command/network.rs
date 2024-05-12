@@ -1,11 +1,10 @@
 use std::process::Command;
 
-use ab_glyph::FontRef;
-use imageproc::drawing;
-use log::{debug, info};
+use cosmic_text::Color;
+use log::info;
 use regex::RegexBuilder;
 
-use crate::{app_error::AppError, driver::{DisplayImage, BLACK}};
+use crate::{app_error::AppError, driver::DisplayImage, render};
 
 
 fn net_info(interface: &str) -> Result<String, AppError> {
@@ -33,15 +32,10 @@ fn net_info(interface: &str) -> Result<String, AppError> {
 }
 
 
-pub fn network(img: &mut DisplayImage, font: &FontRef, font_scale: f32, ifname: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let output = net_info(ifname)?;
+pub fn network(img: &mut DisplayImage, ifname: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let text = net_info(ifname)?;
 
-    for (line, text) in output.trim().split("\n").enumerate() {
-        let x = 0;
-        let y = (line as f32 * font_scale) as i32;
-        debug!("Drawing text '{}' at ({}, {})", text, x, y);
-        drawing::draw_text_mut(img, BLACK, x, y, font_scale, &font, text);
-    }
+    render::text(img, Color::rgb(0, 0, 0), text.trim());
 
     Ok(())
 }

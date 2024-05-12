@@ -1,10 +1,10 @@
-use ab_glyph::FontRef;
 use clap::Parser;
 
+mod app_error;
 mod args;
 mod command;
 mod driver;
-mod app_error;
+mod render;
 mod util;
 
 use args::{Command, DisplayMode};
@@ -14,8 +14,6 @@ use util::*;
 
 
 const IFNAME: &'static str = "wlan0";
-const FONT: &[u8] = include_bytes!("/usr/share/fonts/truetype/jetbrains-mono/JetBrainsMono-Regular.ttf");
-const FONT_SCALE: f32 = 16.0;
 
 // With JetBrains Mono Regular:
 //
@@ -26,8 +24,6 @@ const FONT_SCALE: f32 = 16.0;
 
 
 fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
-
-    let font = FontRef::try_from_slice(FONT)?;
 
     let mut dev = Dev::new()?;
 
@@ -47,14 +43,14 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
         match args.command {
             Command::Clear => {},
             Command::Debug => {
-                command::debug::debug(&mut img, &font, FONT_SCALE)?;
+                command::debug::debug(&mut img)?;
             },
             Command::Tasks => {
-                command::tasks::tasks(&mut img, &font, FONT_SCALE)?;
+                command::tasks::tasks(&mut img)?;
             },
             Command::Calendar => {},
             Command::Network => {
-                command::network::network(&mut img, &font, FONT_SCALE, IFNAME)?;
+                command::network::network(&mut img, IFNAME)?;
             },
         };
 
