@@ -31,19 +31,22 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut dev = Dev::new()?;
 
-    let mode = match args.fast {
-        false => DisplayMode::Full,
-        true => DisplayMode::Fast,
+    let mode = match (args.fast, args.grayscale) {
+        (false, false) => DisplayMode::Full,
+        (true, false) => DisplayMode::Fast,
+        (_, true) => DisplayMode::Grayscale,
     };
 
     loop {
 
-        // Initialize
+        // Initialize and clear
+
+        dev.init(DisplayMode::Fast)?;
+        dev.clear(DisplayMode::Fast)?;
+
+        // Reinitialize and display something
 
         dev.init(mode)?;
-        dev.clear(mode)?;
-
-        // Display an image
 
         let mut img = Dev::image_white_h();
 

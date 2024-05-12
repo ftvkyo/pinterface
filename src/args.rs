@@ -7,6 +7,10 @@ pub struct Args {
     #[arg(short, long)]
     pub fast: bool,
 
+    /// Use grayscale
+    #[arg(short, long)]
+    pub grayscale: bool,
+
     /// If set, the program will restart after every successful execution
     #[arg(short, long)]
     pub repeat: bool,

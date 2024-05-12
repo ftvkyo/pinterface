@@ -45,6 +45,7 @@ pub const WHITE: DisplayImagePixel = Luma([u8::MAX]);
 pub enum DisplayMode {
     Full,
     Fast,
+    Grayscale,
 }
 
 impl std::fmt::Display for DisplayMode {
@@ -52,8 +53,52 @@ impl std::fmt::Display for DisplayMode {
         let s = match self {
             Self::Full => "🐢",
             Self::Fast => "🐇",
+            Self::Grayscale => "🐁",
         };
         write!(f, "{}", s)
+    }
+}
+
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum ColorGrayscale {
+    Black = 0b00,
+    Dark  = 0b01,
+    Light = 0b10,
+    White = 0b11,
+}
+
+impl ColorGrayscale {
+    const B_FROM: u8 = 0;
+    const B_TO: u8   = Self::B_FROM + u8::MAX / 4;
+
+    const D_FROM: u8 = Self::B_TO + 1;
+    const D_TO: u8   = Self::D_FROM + u8::MAX / 4;
+
+    const L_FROM: u8 = Self::D_TO + 1;
+    const L_TO: u8   = Self::L_FROM + u8::MAX / 4;
+
+    const W_FROM: u8 = Self::L_TO + 1;
+    const W_TO: u8   = Self::W_FROM + u8::MAX / 4;
+
+    pub fn new(color: &DisplayImagePixel) -> Self {
+        match color.0[0] {
+            Self::B_FROM..=Self::B_TO => Self::Black,
+            Self::D_FROM..=Self::D_TO => Self::Dark,
+            Self::L_FROM..=Self::L_TO => Self::Light,
+            Self::W_FROM..=Self::W_TO => Self::White,
+        }
+    }
+
+    pub fn bit_0011(&self) -> bool {
+        let num = *self as u8;
+        num & 0b10 > 0
+    }
+
+    pub fn bit_0101(&self) -> bool {
+        let num = *self as u8;
+        num & 0b01 > 0
     }
 }
 
@@ -210,7 +255,7 @@ impl Display {
             // Load temperature value, Display with mode 1
             DisplayMode::Full => self.send_data(&[0xF7])?,
             // Display with mode 1
-            DisplayMode::Fast => self.send_data(&[0xC7])?,
+            DisplayMode::Fast | DisplayMode::Grayscale => self.send_data(&[0xC7])?,
         }
 
         // Execute the selected update sequence
@@ -249,15 +294,60 @@ impl Display {
             self.wait_not_busy();
         }
 
-        // Set RAM Y address start/end position
-        let [y_byte_1, y_byte_2] = (Self::HEIGHT as u16 - 1).to_le_bytes();
-        self.send_command(&[0x45])?;
-        self.send_data(&[0x00, 0x00, y_byte_1, y_byte_2])?;
+        if let DisplayMode::Grayscale = mode {
+            // Set analog block control
+            self.send_command(&[0x74])?;
+            self.send_data(&[0x54])?;
+            // Set digital block control
+            self.send_command(&[0x7E])?;
+            self.send_data(&[0x3B])?;
+
+            // Driver output control
+            self.send_command(&[0x01])?;
+            self.send_data(&[0x07])?;
+            self.send_data(&[0x01])?;
+            self.send_data(&[0x00])?;
+        }
 
         // Data entry mode
         self.send_command(&[0x11])?;
         // Y increment, X increment, counter updated in X direction
         self.send_data(&[0b0000_0011])?;
+
+        // Set RAM Y address start/end position
+        let [y_byte_1, y_byte_2] = (Self::HEIGHT as u16 - 1).to_le_bytes();
+        self.send_command(&[0x45])?;
+        self.send_data(&[0x00, 0x00, y_byte_1, y_byte_2])?;
+
+        if let DisplayMode::Grayscale = mode {
+            // Don't draw border
+            self.send_command(&[0x3C])?;
+            self.send_data(&[0x00])?;
+
+            // VCOM Voltage
+            self.send_command(&[0x2C])?;
+            self.send_data(&[LUT_2BIT[158]])?; // 0x1C
+
+            // EOPQ
+            self.send_command(&[0x3F])?;
+            self.send_data(&[LUT_2BIT[153]])?;
+
+            // VGH
+            self.send_command(&[0x03])?;
+            self.send_data(&[LUT_2BIT[154]])?;
+
+            // Something
+            self.send_command(&[0x04])?;
+            self.send_data(&[LUT_2BIT[155]])?; // VSH1
+            self.send_data(&[LUT_2BIT[156]])?; // VSH2
+            self.send_data(&[LUT_2BIT[157]])?; // VSL
+
+            // LUT
+            self.send_command(&[0x32])?;
+            self.send_data(&LUT_2BIT[0..159])?;
+
+            self.wait_not_busy();
+        }
 
         Ok(())
     }
@@ -265,68 +355,6 @@ impl Display {
     pub fn clear(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
         info!("clear ({})", mode);
         self.display(Self::image_white_v(), mode)?;
-        Ok(())
-    }
-
-    pub fn display(&mut self, img: DisplayImage, mode: DisplayMode) -> Result<(), DriverError> {
-        info!("display ({})", mode);
-
-        // Set RAM Y address count to 0
-        self.send_command(&[0x4F])?;
-        self.send_data(&[0x00, 0x00])?;
-
-        let (width, ..) = Self::image_size_bytes();
-        let mut buffer = Self::buffer_white();
-
-        let horizontal = match (img.width(), img.height()) {
-            (Self::WIDTH, Self::HEIGHT) => false,
-            (Self::HEIGHT, Self::WIDTH) => true,
-            _ => return Err(DriverError::WrongInput(format!(
-                "Image dimensions do not match screen size. Image is {}x{}. Screen is {}, {}",
-                img.width(), img.height(),
-                Self::WIDTH, Self::HEIGHT,
-            ))),
-        };
-
-        // Note: how images are moved into a buffer.
-        //
-        // When the image is vertical, it is transferred byte to bit as is.
-        // The default orientation is such that the flexible connector of the screen is on the bottom.
-        // - (0, 0) of the image corresponds to (0, 0) of the screen
-        //
-        // When the image is horizontal, a transformation is necessary.
-        // The orientation is such that the flexible connector of the screen is on the left.
-        // Therefore:
-        // - (0, 0)           -> (0, ScreenH-1)
-        // - (ImgW-1, 0)      -> (0, 0)
-        // - (0, ImgH-1)      -> (ScreenW-1, ScreenH-1)
-        // - (ImgW-1, ImgH-1) -> (ScreenW-1, 0)
-        //
-        // TODO: figure out how to do this using memory addressing settings
-
-        // Convert the image data to be used in the buffer
-        for (x, y, pixel) in img.enumerate_pixels() {
-            let black = pixel.0[0] <= u8::MAX / 2;
-
-            // Need to make the bit black?
-            if black {
-                let (x, y) = if horizontal {
-                    (y as usize, (Self::HEIGHT - x - 1) as usize)
-                } else {
-                    (x as usize, y as usize)
-                };
-
-                let mask = 0b10000000 >> (x % 8);
-                // Just flip (xor) it, there should be no duplicates
-                buffer[x / 8 + y * width] ^= mask;
-            }
-        }
-
-        self.send_command(&[0x24])?;
-        self.send_data(buffer.as_slice())?;
-
-        self.show(mode)?;
-
         Ok(())
     }
 
@@ -344,4 +372,126 @@ impl Display {
 
         Ok(())
     }
+
+    pub fn display(&mut self, img: DisplayImage, mode: DisplayMode) -> Result<(), DriverError> {
+        info!("display ({})", mode);
+
+        // Set RAM Y address count to 0
+        self.send_command(&[0x4F])?;
+        self.send_data(&[0x00, 0x00])?;
+
+        let (width, ..) = Self::image_size_bytes();
+
+        let horizontal = match (img.width(), img.height()) {
+            (Self::WIDTH, Self::HEIGHT) => false,
+            (Self::HEIGHT, Self::WIDTH) => true,
+            _ => return Err(DriverError::WrongInput(format!(
+                "Image dimensions do not match screen size. Image is {}x{}. Screen is {}, {}",
+                img.width(), img.height(),
+                Self::WIDTH, Self::HEIGHT,
+            ))),
+        };
+
+        if let DisplayMode::Grayscale = mode {
+            return self.display_grayscale(img, horizontal);
+        }
+
+        // Note: how images are moved into a buffer.
+        //
+        // When the image is vertical, it is transferred byte to bit as is.
+        // The default orientation is such that the flexible connector of the screen is on the bottom.
+        // - (0, 0) of the image corresponds to (0, 0) of the screen
+        //
+        // When the image is horizontal, a transformation is necessary.
+        // The orientation is such that the flexible connector of the screen is on the left.
+        // Therefore:
+        // - (0, 0)           -> (0, ScreenH-1)
+        // - (ImgW-1, 0)      -> (0, 0)
+        // - (0, ImgH-1)      -> (ScreenW-1, ScreenH-1)
+        // - (ImgW-1, ImgH-1) -> (ScreenW-1, 0)
+        //
+        // TODO: figure out how to do this using memory addressing settings
+
+        let mut buffer = Self::buffer_white();
+
+        // Convert the image data to be used in the buffer
+        for (x, y, pixel) in img.enumerate_pixels() {
+            let black = pixel.0[0] <= u8::MAX / 2;
+
+            let (x, y) = if horizontal {
+                (y as usize, (Self::HEIGHT - x - 1) as usize)
+            } else {
+                (x as usize, y as usize)
+            };
+
+            let mask = 0b1000_0000 >> (x % 8);
+            // Just flip (xor) it, there should be no duplicates
+            buffer[x / 8 + y * width] ^= if black { mask } else { 0 };
+        }
+
+        self.send_command(&[0x24])?;
+        self.send_data(buffer.as_slice())?;
+
+        self.show(mode)?;
+
+        Ok(())
+    }
+
+    pub fn display_grayscale(&mut self, img: DisplayImage, horizontal: bool) -> Result<(), DriverError> {
+        let (width, ..) = Self::image_size_bytes();
+
+        let mut buffer_0011 = Self::buffer_white();
+        let mut buffer_0101 = Self::buffer_white();
+
+        // TODO: this pretty much copies the general `display()` method, would be nice to deduplicate
+        for (x, y, pixel) in img.enumerate_pixels() {
+            let color = ColorGrayscale::new(pixel);
+            let bit_0011 = color.bit_0011();
+            let bit_0101 = color.bit_0101();
+
+            let (x, y) = if horizontal {
+                (y as usize, (Self::HEIGHT - x - 1) as usize)
+            } else {
+                (x as usize, y as usize)
+            };
+
+            let mask = 0b1000_0000 >> (x % 8);
+            // Just flip (xor) it, there should be no duplicates
+            buffer_0011[x / 8 + y * width] ^= if bit_0011 { mask } else { 0 };
+            buffer_0101[x / 8 + y * width] ^= if bit_0101 { mask } else { 0 };
+        }
+
+        self.send_command(&[0x24])?;
+        self.send_data(buffer_0101.as_slice())?;
+
+        self.send_command(&[0x26])?;
+        self.send_data(buffer_0011.as_slice())?;
+
+        self.show(DisplayMode::Grayscale)?;
+
+        Ok(())
+    }
 }
+
+
+const LUT_2BIT: &'static [u8] = &[
+    0x40, 0x48, 0x80, 0x0,  0x0,  0x0,  0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x8,  0x48, 0x10, 0x0,  0x0,  0x0,  0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x2,  0x48, 0x4,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x20, 0x48, 0x1,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0xA,  0x19, 0x0,  0x3,  0x8,  0x0,  0x0,
+    0x14, 0x1,  0x0,  0x14, 0x1,  0x0,  0x3,
+    0xA,  0x3,  0x0,  0x8,  0x19, 0x0,  0x0,
+    0x1,  0x0,  0x0,  0x0,  0x0,  0x0,  0x1,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+    0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x0, 0x0, 0x0,
+    0x22, 0x17, 0x41, 0x0,  0x32, 0x1C,
+];

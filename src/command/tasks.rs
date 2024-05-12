@@ -1,6 +1,6 @@
 use ab_glyph::FontRef;
 use imageproc::drawing::draw_text_mut;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use markdown::{mdast::{ListItem, Node as MdNode, Paragraph}, ParseOptions};
 use serde::Deserialize;
 
@@ -147,7 +147,7 @@ fn collect_tasks(node: &MdNode, original: &str, only_unchecked: bool) -> Vec<Tas
 
 fn draw_tasks(img: &mut DisplayImage, font: &FontRef, font_scale: f32, x: &mut i32, y: &mut i32, tasks: Vec<Task>) {
     for task in tasks {
-        let text = format!("- {}", task.text);
+        let text = format!("- [{}] {}", if task.checked { "x" } else { " " }, task.text);
         draw_text_mut(img, BLACK, *x, *y, font_scale, font, &text);
         *y += font_scale as i32;
         *x += font_scale as i32;
