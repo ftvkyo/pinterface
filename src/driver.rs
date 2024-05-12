@@ -53,7 +53,7 @@ impl std::fmt::Display for DisplayMode {
         let s = match self {
             Self::Full => "🐢",
             Self::Fast => "🐇",
-            Self::Grayscale => "🐁",
+            Self::Grayscale => "🌻",
         };
         write!(f, "{}", s)
     }
@@ -247,7 +247,7 @@ impl Display {
     }
 
     fn show(&mut self, mode: DisplayMode) -> Result<(), DriverError>  {
-        info!("show ({})", mode);
+        info!("{} show", mode);
 
         // Display update control
         self.send_command(&[0x22])?;
@@ -267,7 +267,7 @@ impl Display {
 
 
     pub fn init(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
-        info!("init ({})", mode);
+        info!("{} init", mode);
 
         self.pwr.write(High);
 
@@ -353,7 +353,7 @@ impl Display {
     }
 
     pub fn clear(&mut self, mode: DisplayMode) -> Result<(), DriverError> {
-        info!("clear ({})", mode);
+        info!("{} clear", mode);
         self.display(Self::image_white_v(), mode)?;
         Ok(())
     }
@@ -374,7 +374,7 @@ impl Display {
     }
 
     pub fn display(&mut self, img: DisplayImage, mode: DisplayMode) -> Result<(), DriverError> {
-        info!("display ({})", mode);
+        info!("{} display", mode);
 
         // Set RAM Y address count to 0
         self.send_command(&[0x4F])?;
