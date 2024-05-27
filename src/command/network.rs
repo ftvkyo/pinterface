@@ -35,7 +35,7 @@ fn net_info(interface: &str) -> Result<String, AppError> {
 pub fn network(img: &mut DisplayImage, ifname: &str) -> Result<(), Box<dyn std::error::Error>> {
     let text = net_info(ifname)?;
 
-    render::text(img, Color::rgb(0, 0, 0), text.trim());
+    render::text(img, Color::rgb(0, 0, 0), text.trim())?;
 
     Ok(())
 }

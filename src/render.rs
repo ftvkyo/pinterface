@@ -1,17 +1,23 @@
+use std::sync::Mutex;
+
+use lazy_static::lazy_static;
 use cosmic_text::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, SwashCache};
 use image::Luma;
 use imageproc::{drawing::draw_filled_rect_mut, rect::Rect};
 
 use crate::driver::DisplayImage;
 
+lazy_static! {
+    static ref FONT_SYSTEM: Mutex<FontSystem> = Mutex::new(FontSystem::new());
+    static ref SWASH_CACHE: Mutex<SwashCache> = Mutex::new(SwashCache::new());
+}
 
-pub fn text(img: &mut DisplayImage, color: Color, text: &str) {
+
+pub fn text(img: &mut DisplayImage, color: Color, text: &str) -> Result<(), Box<dyn std::error::Error>> {
     let metrics = Metrics::new(16.0, 18.0);
 
-    // Should be 1 per application
-    let mut font_system = FontSystem::new();
-    // Should be 1 per application
-    let mut swash_cache = SwashCache::new();
+    let mut font_system = FONT_SYSTEM.lock()?;
+    let mut swash_cache = SWASH_CACHE.lock()?;
 
     // Should be 1 per text widget
     let mut buffer = Buffer::new(&mut font_system, metrics);
@@ -53,4 +59,6 @@ pub fn text(img: &mut DisplayImage, color: Color, text: &str) {
         let color = Luma([color_new as u8]);
         draw_filled_rect_mut(img, rect, color);
     });
+
+    Ok(())
 }

@@ -5,6 +5,7 @@ mod args;
 mod command;
 mod driver;
 mod render;
+mod vault;
 mod util;
 
 use args::{Command, DisplayMode};

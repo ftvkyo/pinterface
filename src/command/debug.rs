@@ -8,7 +8,7 @@ pub fn debug(img: &mut DisplayImage) -> Result<(), Box<dyn std::error::Error>> {
     let text = "\n  X ->\n Y\n\n |\n V";
 
     // Letter X
-    render::text(img, Color::rgb(0, 0, 0), text);
+    render::text(img, Color::rgb(0, 0, 0), text)?;
 
     let (w, h) = (img.width(), img.height());
 
