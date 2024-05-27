@@ -17,7 +17,7 @@ pub fn tasks(img: &mut DisplayImage) -> Result<(), Box<dyn std::error::Error>> {
         },
         Ok(note) => {
             let ast = note_to_ast(&note);
-            let tasks = collect_tasks(&ast, &note, true);
+            let tasks = collect_tasks(&ast, &note, true)?;
 
             debug!("Found unchecked tasks:\n{:#?}", tasks);
 

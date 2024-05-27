@@ -4,6 +4,7 @@ use crate::driver::DriverError;
 #[derive(Debug)]
 pub enum AppError {
     Display(DriverError),
+    Data(String),
     Io(std::io::Error),
     Utf8(std::string::FromUtf8Error),
     Regex(regex::Error),
