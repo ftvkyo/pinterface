@@ -10,6 +10,10 @@ pub struct Args {
     #[arg(short, long, value_enum, default_value_t)]
     pub mode: DisplayMode,
 
+    /// Output the image into a file as well as to the screen
+    #[arg(short, long)]
+    pub debug: bool,
+
     #[arg(value_enum, default_value_t)]
     pub command: Command,
 }

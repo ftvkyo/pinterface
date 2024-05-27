@@ -28,16 +28,6 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
     let mut dev = Dev::new()?;
 
     loop {
-
-        // Initialize and clear
-
-        dev.init(DisplayMode::Fast)?;
-        dev.clear(DisplayMode::Fast)?;
-
-        // Reinitialize and display something
-
-        dev.init(args.mode)?;
-
         let mut img = Dev::image_white_h();
 
         match args.command {
@@ -53,6 +43,21 @@ fn try_main(args: &args::Args) -> Result<(), Box<dyn std::error::Error>> {
                 command::network::network(&mut img, IFNAME)?;
             },
         };
+
+        // Save the image if required
+
+        if args.debug {
+            img.save("out/debug.png")?;
+        }
+
+        // Initialize and clear
+
+        dev.init(DisplayMode::Fast)?;
+        dev.clear(DisplayMode::Fast)?;
+
+        // Reinitialize and display something
+
+        dev.init(args.mode)?;
 
         dev.display(img, args.mode)?;
         dev.sleep()?;
