@@ -1,6 +1,7 @@
 use std::process::Command;
 
 use cosmic_text::Color;
+use imageproc::rect::Rect;
 use log::info;
 use regex::RegexBuilder;
 
@@ -35,7 +36,8 @@ fn net_info(interface: &str) -> Result<String, AppError> {
 pub fn network(img: &mut DisplayImage, ifname: &str) -> Result<(), Box<dyn std::error::Error>> {
     let text = net_info(ifname)?;
 
-    render::text(img, Color::rgb(0, 0, 0), text.trim())?;
+    let rect = Rect::at(0, 0).of_size(img.width(), img.height());
+    render::draw_text(img, Color::rgb(0, 0, 0), rect, text.trim())?;
 
     Ok(())
 }

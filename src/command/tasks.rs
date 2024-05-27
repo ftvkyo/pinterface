@@ -1,4 +1,5 @@
 use cosmic_text::Color;
+use imageproc::rect::Rect;
 use log::{debug, warn};
 
 use crate::{driver::DisplayImage, render, vault::{collect_tasks, note_to_ast, read_today_note, Task}};
@@ -22,7 +23,8 @@ pub fn tasks(img: &mut DisplayImage) -> Result<(), Box<dyn std::error::Error>> {
 
             let text = format!("{}\n{}", now.format(TIME_PRETTY), format_tasks(tasks, 0));
 
-            render::text(img, Color::rgb(0, 0, 0), &text)?;
+            let rect = Rect::at(0, 0).of_size(img.width(), img.height());
+            render::draw_text(img, Color::rgb(0, 0, 0), rect, &text)?;
         },
     }
 
